@@ -1,0 +1,68 @@
+Please update and refactor the existing project codebase to implement the following structural updates, new commands, and logic changes.
+
+### Summary of Major Architectural Changes
+1. REMOVE the Check-In System entirely: Delete the `/checkin` command and remove the check-in list array from the database schema.
+2. ADD Slash Command Autocomplete: Implement `interaction.isAutocomplete()` in `index.js` / command handlers for any command accepting team names (`team_name`, `team_a`, `team_b`).
+3. UPDATE Team Roster Storage: Store Captain IDs and Member IDs directly in the Team database entries during `/addteam`.
+4. UPDATE Match Creation: Remove captain parameters from `/creatematch`. Fetch captains automatically from the database based on the selected teams.
+5. AUTOMATE Match Setup: Automatically execute a coinflip for turn order and randomize match formats (`bo1`, `bo3`, or `bo7`) upon match creation.
+6. UPDATE Auto-Move Logic: When the map veto finishes in `/startmatch`, auto-move all registered team members (from the team database entry) who are currently connected to any Voice Channel in the server to their generated match VCs.
+
+---
+
+### Detailed File & Feature Updates
+
+#### 1. Database Schema Refactoring
+* Update **Teams** structure: `{ team_name: string, captain_id: string, member_ids: string[] }`
+* Update **Matches** structure: `{ match_id: string, team_a: string, team_b: string, first_turn_team: string, format: "bo1"|"bo3"|"bo7", category_id: string, veto_channel_id: string, team_a_vc_id: string, team_b_vc_id: string, status: string }`
+* Remove `check_in_list` from match objects.
+
+#### 2. Slash Command Autocomplete Integration
+* In `interactionCreate` handler, listen for `interaction.isAutocomplete()`.
+* When focused option is a team selection (`team_name`, `team_a`, `team_b`), query saved teams from the database, filter by the user's typed string, and return up to 25 choices via `interaction.respond()`.
+
+#### 3. Command Modifications & Additions
+
+* **Refactor `/addteam`**:
+  * Parameters: `team_name` (String, Autocomplete), `team_captain` (User), `team_members` (String containing user mentions like `<@123> <@456>`).
+  * Logic: Extract User IDs from the `team_members` string, save `team_captain` ID, and persist the array of member IDs to the team object.
+
+* **Refactor `/removeteam`**:
+  * Enable Autocomplete for `team_name`.
+
+* **ADD `/teamlist`**:
+  * Replies with an Embed listing all registered team names in the database.
+
+* **ADD `/teaminfo`**:
+  * Optional Parameter: `team_name` (String, Autocomplete).
+  * Logic: If `team_name` is provided, output an Embed with that team's Captain and Members. If omitted, find the team where `interaction.user.id` is listed as a captain or member and display that team's info (reply ephemerally with an error if not on a team).
+
+* **Refactor `/creatematch`**:
+  * Parameters: `team_a` (String, Autocomplete), `team_b` (String, Autocomplete). *(Remove captain parameters).*
+  * Logic:
+    1. Fetch captains and member lists from the team database.
+    2. Coinflip: Randomly decide whether Team A or Team B acts first (`first_turn_team`).
+    3. Randomize Format: Roll randomly between `bo1`, `bo3`, and `bo7`.
+    4. Category & Channels: Create Category (`TOURNAMENT MATCH: [ID]`), Text Channel (`veto-room`), AND Voice Channels (`[Team A] VC` and `[Team B] VC`).
+    5. Post an announcement embed in `veto-room` detailing the matchup, coinflip winner, and randomized format.
+
+* **DELETE `/checkin`**:
+  * Completely remove `checkin.js` / command handler.
+
+* **Refactor `/startmatch`**:
+  * Parameters: `match_id` (String).
+  * Logic:
+    1. Run the interactive map veto based on the match's randomized format (`bo1`, `bo3`, or `bo7`).
+    2. Map Pool: Ascent, Bind, Haven, Icebox, Lotus, Pearl, Sunset.
+    3. Sequences:
+       - **Bo1**: 6 Bans (1 Decider map remaining).
+       - **Bo3**: 2 Bans -> 2 Picks -> 2 Bans (1 Decider map remaining).
+       - **Bo7**: 6 Picks (1 Decider map remaining).
+    4. On Veto Completion: Post final schedule embed. Then fetch all Member IDs associated with Team A and Team B from the database. For each member currently in a server Voice Channel (`member.voice.channelId`), call `member.voice.setChannel()` to move them into their designated match Voice Channel. Catch any missing channel/permission errors silently.
+
+* **Refactor `/removematch`**:
+  * Delete both Voice Channels, the veto text channel, the Category, and remove the match record from the database.
+
+---
+
+Please provide the updated codebase files (`index.js`, database module, and command handlers) with these refactored changes.

@@ -1,0 +1,59 @@
+Please update the project codebase to add match ending, leaderboard tracking, match history, and admin disqualification functionality.
+
+### 1. Database Schema Updates
+
+Update the **Teams** and **Matches** object schemas:
+* **Teams:** `{ team_name: string, captain_id: string, member_ids: string[], wins: number, losses: number }`
+* **Matches:** `{ match_id: string, team_a: string, team_b: string, first_turn_team: string, format: "bo1"|"bo3"|"bo7", category_id: string, veto_channel_id: string, team_a_vc_id: string, team_b_vc_id: string, status: "in_progress" | "completed" | "disqualified", score_team_a: number, score_team_b: number, winner: string, completed_at: string }`
+
+---
+
+### 2. New Commands to Implement
+
+#### `/endmatch [match_id] [score_team_a] [score_team_b]`
+* **Parameters:**
+  * `match_id` (String Option - Autocomplete enabled for matches where `status === "in_progress"`).
+  * `score_team_a` (Integer Option, Required).
+  * `score_team_b` (Integer Option, Required).
+* **Logic:**
+  1. Fetch the match from the database. Ensure `status` is `"in_progress"`.
+  2. Determine the winning team based on scores.
+  3. Update team stats in the database: increment `wins` for the winner and `losses` for the loser.
+  4. Save `score_team_a`, `score_team_b`, `winner`, set `status = "completed"`, and save `completed_at` timestamp.
+  5. **Embed Output:** Post an embed in the `veto-room` text channel showing:
+     * Match ID & Format (e.g., Bo3)
+     * Final Score: **[Team A] X - Y [Team B]**
+     * **Winner:** 🏆 [Winning Team Name]
+     * A note indicating administrators can now run `/removematch [match_id]` to delete channels.
+
+#### `/leaderboard`
+* **Logic:**
+  1. Fetch all teams from the database.
+  2. Sort teams by most `wins` descending (and highest win rate as secondary tie-breaker).
+  3. Output a formatted Embed showing the top teams:
+     * Rank | Team Name | Wins - Losses | Win Rate %
+
+#### `/history [team_name] (optional)`
+* **Parameters:**
+  * `team_name` (String Option, Optional - Autocomplete enabled).
+* **Logic:**
+  1. If `team_name` is provided, filter completed/disqualified matches involving that team.
+  2. If `team_name` is omitted, fetch the 10 most recent completed/disqualified matches globally.
+  3. Display an Embed listing past match outcomes, scores, formats, and dates.
+
+#### `/disqualifymatch [match_id] [dq_team] [reason]`
+* **Permissions:** Admin-only command (check `PermissionFlagsBits.Administrator` or manage channels permission).
+* **Parameters:**
+  * `match_id` (String Option - Autocomplete enabled for all matches).
+  * `dq_team` (String Option - Autocomplete enabled for registered teams).
+  * `reason` (String Option, Optional).
+* **Logic:**
+  1. Fetch the match entry from the database.
+  2. If the match was previously marked `"completed"`, revert the stats added during `/endmatch` (subtract 1 win from the original winner, subtract 1 loss from the original loser).
+  3. Mark the match status as `"disqualified"`.
+  4. Award the default win to the opposing non-DQ team (increment opposing team's `wins` by 1 and DQ team's `losses` by 1).
+  5. Post an Embed announcing the DQ action, the winning team by default, and the reason provided.
+
+---
+
+Please update the codebase files (`index.js`, database helpers, and command files) with these new commands and schema adjustments.
