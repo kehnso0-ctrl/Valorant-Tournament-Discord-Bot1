@@ -29,7 +29,7 @@ Discord.js bot for managing Valorant team rosters, randomized match formats and 
 
 ## Architecture decisions
 
-- Tournament state uses a local JSON file as requested; it is not shared between multiple bot instances.
+- Tournament state uses a local JSON file. (will upgrade to an SQL database soon); it is not shared between multiple bot instances.
 - Slash commands register globally by default; set `DISCORD_GUILD_ID` for development-time guild registration.
 
 ## Product
